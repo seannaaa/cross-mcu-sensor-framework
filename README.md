@@ -233,7 +233,53 @@ adapters/
   business/
 ```
 
-## 8. Public Interface 建议
+## 8. Build Script
+
+项目里已经加了一个简单的构建脚本：
+
+- [build.sh](/home2/sean/BlueAirProject/cross-mcu-sensor-framework/build.sh:1)
+
+用法：
+
+```bash
+./build.sh esp32
+./build.sh stm32
+./build.sh linux_native
+```
+
+如果你后面有 toolchain file，也可以继续往后传：
+
+```bash
+./build.sh stm32 -DCMAKE_TOOLCHAIN_FILE=cmake/stm32-toolchain.cmake
+./build.sh esp32 -DIDF_TARGET=esp32s3
+```
+
+行为说明：
+
+- 第一个参数会作为 `MCU_PLATFORM` 传给 CMake
+- 构建目录会放到 `build/<platform>/`
+- 如果平台名里带 `/`，脚本会自动转成 `_`
+
+例如：
+
+```bash
+./build.sh esp32/s3
+```
+
+会生成：
+
+```text
+build/esp32_s3/
+```
+
+当前这个脚本先解决 `统一入口` 和 `按平台分目录构建` 两个问题，后面如果你要接不同工具链，可以继续往里面补：
+
+- toolchain 选择
+- platform 默认宏
+- platform 专属 source list
+- 烧录命令
+
+## 9. Public Interface 建议
 
 核心接口先收敛到这些名字：
 
@@ -249,7 +295,100 @@ adapters/
 - `sensor_event_listener`
 - `sensor_manager`
 
-## 9. 后续切 C++ 时的映射
+## 10. 当前代码思路
+
+现在仓库里的代码是一个 `最小可运行骨架`，先把主链路打通了：
+
+```text
+mock platform -> temperature driver -> moving average -> dispatch listener
+```
+
+### `platform/include/platform_ops.h`
+
+这一层先定义了 `platform_i2c_ops_t`。
+
+思路是：
+
+- 先把最常见的 bus 抽象出来
+- driver 不直接写芯片 SDK
+- 后面再逐步补 `gpio/pwm/timer/delay`
+
+### `drivers/include/sensor_driver.h`
+
+这里定义了两部分：
+
+- 通用抽象：`sensor_driver_t` + `sensor_driver_ops_t`
+- 示例驱动：`temperature_driver_t`
+
+也就是说，框架层只认：
+
+- `driver context`
+- `driver ops`
+
+至于底层到底是哪个温度芯片、哪个 MCU，不让 core 关心。
+
+### `drivers/temperature_sensor_driver.c`
+
+当前用一个很小的温度驱动示例来演示思路：
+
+- 通过 `platform_i2c_ops` 读 2 字节原始值
+- 按 `0.01°C` 分辨率转成 `float`
+- 输出标准化 `sensor_sample_t`
+
+这里的重点不是芯片协议复杂度，而是先把 `platform -> driver -> sample` 的边界跑通。
+
+### `core/include/sensor_manager.h` + `core/sensor_manager.c`
+
+`sensor_manager` 是当前主流程调度器，负责：
+
+- 调 driver
+- 给 sample 填 `timestamp`
+- 调 filter
+- 再分发给 listener
+
+这是整个框架里最关键的“主干层”。
+
+### `filters/include/sensor_filter.h` + `filters/moving_average_filter.c`
+
+现在先实现了一个最小版 `moving average`。
+
+当前策略很简单：
+
+- 第一次采样直接输出
+- 第二次开始做 2 点平均
+
+它主要是用来验证：
+
+- filter 层能独立存在
+- filter 不耦合 driver
+- filter 只处理 sample
+
+### `dispatch/include/dispatch_listener.h`
+
+这里先用最简单的 listener 结构：
+
+- `context`
+- `on_sample`
+
+这样 GUI / MQTT / business 后面都可以接成同一种 consumer 形态。
+
+### `tests/test_sensor_framework.c`
+
+当前测试没有上复杂测试框架，而是用一个很轻的 C 测试文件做验证。
+
+它做了两件事：
+
+1. 验证温度 sample 能从 fake i2c 读出来并转换成功
+2. 验证第二次采样经过 moving average 后得到预期值
+
+所以这份测试本质上是在保底：
+
+- platform 抽象可接入
+- driver 可工作
+- filter 可工作
+- dispatch 可工作
+
+## 11. 后续切 C++ 时的映射
 
 当前用 C 命名，后面可以自然映射成 C++：
 
@@ -259,7 +398,7 @@ adapters/
 - `sensor_event_listener` -> observer/listener
 - `sensor_manager` -> controller / orchestrator
 
-## 10. 最重要的规则
+## 12. 最重要的规则
 
 - 平台差异必须收口到 `platform layer`
 - sensor driver 不能直接写芯片 SDK
@@ -267,7 +406,7 @@ adapters/
 - GUI / MQTT / business 只能消费 sample
 - 上层不要到处写芯片分支 `#ifdef`
 
-## 11. docs
+## 13. docs
 
 完整设计文档见：
 
