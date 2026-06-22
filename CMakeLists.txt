@@ -11,7 +11,10 @@ message(STATUS "MCU_PLATFORM=${MCU_PLATFORM}")
 enable_testing()
 
 add_executable(sensor_framework_tests
-    biz/sample_biz.c
+    biz/business_app.c
+    biz/gui_app.c
+    biz/mqtt_app.c
+    biz/sensor_filter.c
     drivers/temperature_driver.c
     model/sensor_manager.c
     platform/esp32_platform.c

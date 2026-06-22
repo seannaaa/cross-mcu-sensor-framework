@@ -2,7 +2,7 @@
 
 #include <stddef.h>
 
-#include "sample_biz.h"
+#include "sensor_filter.h"
 #include "temperature_driver.h"
 
 int sensor_manager_init(sensor_manager_t *manager)

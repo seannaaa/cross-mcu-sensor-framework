@@ -63,8 +63,14 @@ docs/
 
 当前有：
 
-- [biz/sample_biz.h](/home2/sean/BlueAirProject/cross-mcu-sensor-framework/biz/sample_biz.h:1)
-- [biz/sample_biz.c](/home2/sean/BlueAirProject/cross-mcu-sensor-framework/biz/sample_biz.c:1)
+- [biz/sensor_filter.h](/home2/sean/BlueAirProject/cross-mcu-sensor-framework/biz/sensor_filter.h:1)
+- [biz/sensor_filter.c](/home2/sean/BlueAirProject/cross-mcu-sensor-framework/biz/sensor_filter.c:1)
+- [biz/gui_app.h](/home2/sean/BlueAirProject/cross-mcu-sensor-framework/biz/gui_app.h:1)
+- [biz/gui_app.c](/home2/sean/BlueAirProject/cross-mcu-sensor-framework/biz/gui_app.c:1)
+- [biz/mqtt_app.h](/home2/sean/BlueAirProject/cross-mcu-sensor-framework/biz/mqtt_app.h:1)
+- [biz/mqtt_app.c](/home2/sean/BlueAirProject/cross-mcu-sensor-framework/biz/mqtt_app.c:1)
+- [biz/business_app.h](/home2/sean/BlueAirProject/cross-mcu-sensor-framework/biz/business_app.h:1)
+- [biz/business_app.c](/home2/sean/BlueAirProject/cross-mcu-sensor-framework/biz/business_app.c:1)
 
 ### `test/`
 
@@ -93,9 +99,15 @@ docs/
 8. [model/sensor_types.h](/home2/sean/BlueAirProject/cross-mcu-sensor-framework/model/sensor_types.h:1)
 9. [model/sensor_manager.h](/home2/sean/BlueAirProject/cross-mcu-sensor-framework/model/sensor_manager.h:1)
 10. [model/sensor_manager.c](/home2/sean/BlueAirProject/cross-mcu-sensor-framework/model/sensor_manager.c:1)
-11. [biz/sample_biz.h](/home2/sean/BlueAirProject/cross-mcu-sensor-framework/biz/sample_biz.h:1)
-12. [biz/sample_biz.c](/home2/sean/BlueAirProject/cross-mcu-sensor-framework/biz/sample_biz.c:1)
-13. [test/test_sensor_framework.c](/home2/sean/BlueAirProject/cross-mcu-sensor-framework/test/test_sensor_framework.c:1)
+11. [biz/sensor_filter.h](/home2/sean/BlueAirProject/cross-mcu-sensor-framework/biz/sensor_filter.h:1)
+12. [biz/sensor_filter.c](/home2/sean/BlueAirProject/cross-mcu-sensor-framework/biz/sensor_filter.c:1)
+13. [biz/gui_app.h](/home2/sean/BlueAirProject/cross-mcu-sensor-framework/biz/gui_app.h:1)
+14. [biz/gui_app.c](/home2/sean/BlueAirProject/cross-mcu-sensor-framework/biz/gui_app.c:1)
+15. [biz/mqtt_app.h](/home2/sean/BlueAirProject/cross-mcu-sensor-framework/biz/mqtt_app.h:1)
+16. [biz/mqtt_app.c](/home2/sean/BlueAirProject/cross-mcu-sensor-framework/biz/mqtt_app.c:1)
+17. [biz/business_app.h](/home2/sean/BlueAirProject/cross-mcu-sensor-framework/biz/business_app.h:1)
+18. [biz/business_app.c](/home2/sean/BlueAirProject/cross-mcu-sensor-framework/biz/business_app.c:1)
+19. [test/test_sensor_framework.c](/home2/sean/BlueAirProject/cross-mcu-sensor-framework/test/test_sensor_framework.c:1)
 
 ## 3. 函数指针怎么对应到 ESP32 / STM32
 
@@ -198,12 +210,16 @@ driver -> sample -> filter -> listeners
 
 ## 6. biz 层做了什么
 
-[biz/sample_biz.c](/home2/sean/BlueAirProject/cross-mcu-sensor-framework/biz/sample_biz.c:1) 里放了三类逻辑：
+`biz/` 现在不再挤在一个文件里，而是按角色拆开：
 
-- `moving average filter`
-- `gui listener`
-- `mqtt listener`
-- `business listener`
+- `sensor_filter.*`
+  - 放滤波逻辑
+- `gui_app.*`
+  - 放 GUI 消费逻辑
+- `mqtt_app.*`
+  - 放 MQTT 消费逻辑
+- `business_app.*`
+  - 放业务判断逻辑
 
 这里就是你要的“整个笔试题的数据链路”在上层的落点：
 
@@ -211,6 +227,17 @@ driver -> sample -> filter -> listeners
 - gui：显示 sample
 - mqtt：发布 sample
 - business：根据 sample 做阈值判断
+
+当前已经补了几种常用滤波：
+
+- `bypass`
+  - 直接透传，适合 bring-up / debug
+- `moving average`
+  - 简单平滑
+- `median3`
+  - 适合压单点尖峰噪声
+- `ema/iir`
+  - 低内存、响应快、适合持续采样场景
 
 ## 7. build.sh
 
