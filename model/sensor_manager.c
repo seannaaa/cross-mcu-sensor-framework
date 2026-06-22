@@ -2,8 +2,8 @@
 
 #include <stddef.h>
 
-#include "sensor_driver.h"
-#include "sensor_filter.h"
+#include "sample_biz.h"
+#include "temperature_driver.h"
 
 int sensor_manager_init(sensor_manager_t *manager)
 {
@@ -43,7 +43,7 @@ int sensor_manager_read_once(sensor_manager_t *manager)
 
     sample.timestamp_ms = manager->timestamp_ms;
 
-    /* 这里统一在 core 层串联 filter，避免业务层各自重复处理。 */
+    /* 这里统一在 manager 层串联 filter，避免业务层各自重复处理。 */
     if ((manager->filter != NULL) && (manager->filter->ops != NULL) && (manager->filter->ops->process != NULL)) {
         result = manager->filter->ops->process(manager->filter->context, &sample);
         if (result != 0) {

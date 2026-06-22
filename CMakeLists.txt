@@ -11,18 +11,19 @@ message(STATUS "MCU_PLATFORM=${MCU_PLATFORM}")
 enable_testing()
 
 add_executable(sensor_framework_tests
-    core/sensor_manager.c
-    drivers/temperature_sensor_driver.c
-    filters/moving_average_filter.c
-    tests/test_sensor_framework.c
+    biz/sample_biz.c
+    drivers/temperature_driver.c
+    model/sensor_manager.c
+    platform/esp32_platform.c
+    platform/stm32_platform.c
+    test/test_sensor_framework.c
 )
 
 target_include_directories(sensor_framework_tests PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/platform/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/drivers/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/core/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/filters/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/dispatch/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/platform
+    ${CMAKE_CURRENT_SOURCE_DIR}/drivers
+    ${CMAKE_CURRENT_SOURCE_DIR}/model
+    ${CMAKE_CURRENT_SOURCE_DIR}/biz
 )
 
 target_compile_definitions(sensor_framework_tests PRIVATE
