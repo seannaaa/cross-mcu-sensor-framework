@@ -10,6 +10,16 @@ message(STATUS "MCU_PLATFORM=${MCU_PLATFORM}")
 
 enable_testing()
 
+set(PLATFORM_SOURCE "")
+
+if(MCU_PLATFORM STREQUAL "esp32")
+    set(PLATFORM_SOURCE platform/esp32/platform_impl.c)
+elseif(MCU_PLATFORM STREQUAL "stm32")
+    set(PLATFORM_SOURCE platform/stm32/platform_impl.c)
+else()
+    message(FATAL_ERROR "Unsupported MCU_PLATFORM: ${MCU_PLATFORM}")
+endif()
+
 add_executable(sensor_framework_tests
     biz/business_app.c
     biz/gui_app.c
@@ -17,8 +27,7 @@ add_executable(sensor_framework_tests
     biz/sensor_filter.c
     drivers/temperature_driver.c
     model/sensor_manager.c
-    platform/esp32_platform.c
-    platform/stm32_platform.c
+    ${PLATFORM_SOURCE}
     test/test_sensor_framework.c
 )
 

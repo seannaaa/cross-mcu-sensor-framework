@@ -4,9 +4,9 @@
 #include <string.h>
 
 #include "business_app.h"
-#include "esp32_platform.h"
 #include "gui_app.h"
 #include "mqtt_app.h"
+#include "platform.h"
 #include "sensor_manager.h"
 #include "sensor_filter.h"
 #include "temperature_driver.h"
@@ -79,19 +79,19 @@ static void test_full_pipeline_with_mock_i2c(void)
 {
     /*
      * 这里验证完整数据链路：
-     * esp32 platform -> temperature driver -> sensor_manager
+     * 统一 platform -> temperature driver -> sensor_manager
      * -> moving_average -> gui/mqtt/business
      */
-    esp32_platform_t platform = {
-        .i2c_port = 0,
+    platform_t platform = {
+        .i2c_bus = 0,
         .power_pin = 21,
         .pwm_channel = 2,
-        .tick_ms_cache = 1234U,
+        .tick_ms = 1234U,
         .mock_raw_temperature = 2534,
     };
 
-    /* 通过 create_bundle 把 ESP32 这一套函数指针统一打包给上层使用。 */
-    platform_bundle_t bundle = esp32_platform_create_bundle(&platform);
+    /* 通过统一 create_bundle 把当前构建平台的函数指针表打包给上层使用。 */
+    platform_bundle_t bundle = platform_create_bundle(&platform);
 
     /* raw_buffer 模拟 sensor 原始寄存器读回来的 2 字节数据。 */
     uint8_t raw_buffer[2] = {0};
@@ -183,19 +183,19 @@ static void test_full_pipeline_with_mock_i2c(void)
     assert(business_model.alert_active == 1);
 }
 
-static int run_esp32_demo(void)
+static int run_platform_demo(void)
 {
     /* 这里不是做 assert，而是把整条链路最终结果直接打印出来。 */
-    esp32_platform_t platform = {
-        .i2c_port = 0,
+    platform_t platform = {
+        .i2c_bus = 0,
         .power_pin = 21,
         .pwm_channel = 2,
-        .tick_ms_cache = 1000U,
+        .tick_ms = 1000U,
         .mock_raw_temperature = 2866,
     };
 
-    /* 固定选用 ESP32 平台函数指针表。 */
-    platform_bundle_t bundle = esp32_platform_create_bundle(&platform);
+    /* 这里由构建平台决定实际绑定哪套平台函数指针表。 */
+    platform_bundle_t bundle = platform_create_bundle(&platform);
     uint8_t raw_buffer[2] = {0};
 
     /* 这一段和测试链路一致，目的是让 demo 和真实验证走同一套路径。 */
@@ -245,12 +245,8 @@ static int run_esp32_demo(void)
     };
 
     /*
-     * 这里的 demo 固定按 ESP32 跑一条完整链路：
+     * 这里的 demo 固定按当前构建平台跑一条完整链路：
      * platform -> driver -> manager -> filter -> gui/mqtt/business
-     *
-     * 如果后面要切换 STM32 或其他芯片，
-     * 只需要把 esp32_platform_create_bundle(...) 换成对应平台的 create_bundle(...)，
-     * driver / manager / biz 层不用改。
      */
     if (sensor_manager_init(&manager) != 0) {
         return 1;
@@ -260,10 +256,10 @@ static int run_esp32_demo(void)
     }
 
     /* 这里输出的是 GUI / MQTT / business 三个消费方最终拿到的结果。 */
-    printf("[esp32] GUI temperature: %.2f C\n", gui_model.last_temperature);
-    printf("[esp32] MQTT topic: %s\n", mqtt_model.last_topic);
-    printf("[esp32] MQTT payload: %s\n", mqtt_model.last_payload);
-    printf("[esp32] Business alert: %d\n", business_model.alert_active);
+    printf("[%s] GUI temperature: %.2f C\n", MCU_PLATFORM_NAME, gui_model.last_temperature);
+    printf("[%s] MQTT topic: %s\n", MCU_PLATFORM_NAME, mqtt_model.last_topic);
+    printf("[%s] MQTT payload: %s\n", MCU_PLATFORM_NAME, mqtt_model.last_payload);
+    printf("[%s] Business alert: %d\n", MCU_PLATFORM_NAME, business_model.alert_active);
 
     return 0;
 }
@@ -274,6 +270,6 @@ int main(void)
     test_other_filters();
     test_full_pipeline_with_mock_i2c();
 
-    /* 再跑一遍 ESP32 demo，把 GUI/MQTT/business 最终结果打印出来。 */
-    return run_esp32_demo();
+    /* 再跑一遍当前构建平台的 demo，把最终结果打印出来。 */
+    return run_platform_demo();
 }

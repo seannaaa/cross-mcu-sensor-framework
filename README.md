@@ -25,9 +25,11 @@ docs/
 
 当前有：
 
-- [platform/esp32_platform.c](/home2/sean/BlueAirProject/cross-mcu-sensor-framework/platform/esp32_platform.c:1)
-- [platform/stm32_platform.c](/home2/sean/BlueAirProject/cross-mcu-sensor-framework/platform/stm32_platform.c:1)
+- [platform/platform.h](/home2/sean/BlueAirProject/cross-mcu-sensor-framework/platform/platform.h:1)
+- [platform/platform_config.h](/home2/sean/BlueAirProject/cross-mcu-sensor-framework/platform/platform_config.h:1)
 - [platform/platform_ops.h](/home2/sean/BlueAirProject/cross-mcu-sensor-framework/platform/platform_ops.h:1)
+- [platform/esp32/platform_impl.c](/home2/sean/BlueAirProject/cross-mcu-sensor-framework/platform/esp32/platform_impl.c:1)
+- [platform/stm32/platform_impl.c](/home2/sean/BlueAirProject/cross-mcu-sensor-framework/platform/stm32/platform_impl.c:1)
 
 这里负责：
 
@@ -81,19 +83,19 @@ docs/
 这一个文件里同时做了：
 
 - 完整链路测试
-- ESP32 函数指针绑定 demo
+- 当前构建平台的函数指针绑定 demo
 - 最终输出 demo
-- 注释说明如何切到其他芯片
+- 注释说明为什么应用层不用再写平台分支
 
 ## 2. 代码链路怎么读
 
 建议按这个顺序看：
 
 1. [platform/platform_ops.h](/home2/sean/BlueAirProject/cross-mcu-sensor-framework/platform/platform_ops.h:1)
-2. [platform/esp32_platform.h](/home2/sean/BlueAirProject/cross-mcu-sensor-framework/platform/esp32_platform.h:1)
-3. [platform/stm32_platform.h](/home2/sean/BlueAirProject/cross-mcu-sensor-framework/platform/stm32_platform.h:1)
-4. [platform/esp32_platform.c](/home2/sean/BlueAirProject/cross-mcu-sensor-framework/platform/esp32_platform.c:1)
-5. [platform/stm32_platform.c](/home2/sean/BlueAirProject/cross-mcu-sensor-framework/platform/stm32_platform.c:1)
+2. [platform/platform_config.h](/home2/sean/BlueAirProject/cross-mcu-sensor-framework/platform/platform_config.h:1)
+3. [platform/platform.h](/home2/sean/BlueAirProject/cross-mcu-sensor-framework/platform/platform.h:1)
+4. [platform/esp32/platform_impl.c](/home2/sean/BlueAirProject/cross-mcu-sensor-framework/platform/esp32/platform_impl.c:1)
+5. [platform/stm32/platform_impl.c](/home2/sean/BlueAirProject/cross-mcu-sensor-framework/platform/stm32/platform_impl.c:1)
 6. [drivers/temperature_driver.h](/home2/sean/BlueAirProject/cross-mcu-sensor-framework/drivers/temperature_driver.h:1)
 7. [drivers/temperature_driver.c](/home2/sean/BlueAirProject/cross-mcu-sensor-framework/drivers/temperature_driver.c:1)
 8. [model/sensor_types.h](/home2/sean/BlueAirProject/cross-mcu-sensor-framework/model/sensor_types.h:1)
@@ -111,38 +113,43 @@ docs/
 
 ## 3. 函数指针怎么对应到 ESP32 / STM32
 
-这件事的核心不是 driver 里写分支，而是每个平台各自生成一套 `platform_bundle_t`。
+这件事的核心不是 driver 里写分支，而是当前构建平台各自实现同名的 `platform_create_bundle(...)`，统一生成 `platform_bundle_t`。
 
-### ESP32
+### 统一入口
 
-看这里：
+应用层现在只需要：
 
-- `esp32_platform_create_bundle(...)`
+- `platform_t`
+- `platform_create_bundle(...)`
 
 本质是：
 
 ```c
-bundle.i2c.read = esp32_i2c_read;
-bundle.gpio.write = esp32_gpio_write;
-bundle.pwm.set = esp32_pwm_set;
-bundle.timer.get_tick_ms = esp32_get_tick_ms;
-bundle.delay.delay_ms = esp32_delay_ms;
+platform_t platform = {
+    .i2c_bus = 0,
+    .power_pin = 21,
+    .pwm_channel = 2,
+    .tick_ms = 1000U,
+    .mock_raw_temperature = 2866,
+};
+platform_bundle_t bundle = platform_create_bundle(&platform);
 ```
 
-### STM32
+### 平台实现
 
-看这里：
+真正的平台差异下沉到：
 
-- `stm32_platform_create_bundle(...)`
+- `platform/esp32/platform_impl.c`
+- `platform/stm32/platform_impl.c`
 
-本质是：
+不同平台各自把本地函数绑定到统一 bundle：
 
 ```c
-bundle.i2c.read = stm32_i2c_read;
-bundle.gpio.write = stm32_gpio_write;
-bundle.pwm.set = stm32_pwm_set;
-bundle.timer.get_tick_ms = stm32_get_tick_ms;
-bundle.delay.delay_ms = stm32_delay_ms;
+bundle.i2c.read = xxx_i2c_read;
+bundle.gpio.write = xxx_gpio_write;
+bundle.pwm.set = xxx_pwm_set;
+bundle.timer.get_tick_ms = xxx_get_tick_ms;
+bundle.delay.delay_ms = xxx_delay_ms;
 ```
 
 然后同一个 `temperature_driver_t` 只依赖：
@@ -154,13 +161,12 @@ bundle.delay.delay_ms = stm32_delay_ms;
 
 所以：
 
-- 换 ESP32，就传 `esp32_platform_create_bundle(...)`
-- 换 STM32，就传 `stm32_platform_create_bundle(...)`
+- 切 ESP32，就执行 `./build.sh esp32`
+- 切 STM32，就执行 `./build.sh stm32`
 
 driver 和 manager 主链路完全不用改。
 
-当前 `test` 里为了更简洁，实际只跑 `ESP32` 这一条链路；
-`STM32` 保留为平台实现示例，作为“如何切换其他芯片”的参考。
+当前 `test` 会随构建平台跑对应实现，不再把 ESP32 写死在应用层。
 
 ## 4. 当前 temperature driver 思路
 

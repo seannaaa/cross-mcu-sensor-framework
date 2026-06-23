@@ -1,9 +1,6 @@
-#include "stm32_platform.h"
+#include "platform_impl.h"
 
-/*
- * 这是 STM32 平台 demo。
- * 重点是演示函数指针如何绑定到统一 platform ops。
- */
+#include <stddef.h>
 
 static int stm32_i2c_read(void *context,
                           uint8_t device_address,
@@ -11,7 +8,7 @@ static int stm32_i2c_read(void *context,
                           uint8_t *buffer,
                           size_t buffer_size)
 {
-    stm32_platform_t *platform = (stm32_platform_t *)context;
+    platform_t *platform = (platform_t *)context;
     (void)device_address;
     (void)register_address;
 
@@ -19,7 +16,7 @@ static int stm32_i2c_read(void *context,
         return -1;
     }
 
-    /* 真实 STM32 项目里这里通常会接 HAL_I2C_Mem_Read。 */
+    /* 这里继续用 mock 温度值来模拟 STM32 侧寄存器读回的数据。 */
     buffer[0] = (uint8_t)((platform->mock_raw_temperature >> 8) & 0xFF);
     buffer[1] = (uint8_t)(platform->mock_raw_temperature & 0xFF);
     return 0;
@@ -27,13 +24,13 @@ static int stm32_i2c_read(void *context,
 
 static int stm32_gpio_write(void *context, int pin, int value)
 {
-    stm32_platform_t *platform = (stm32_platform_t *)context;
+    platform_t *platform = (platform_t *)context;
 
     if (platform == NULL) {
         return -1;
     }
 
-    /* 真实 STM32 项目里这里通常会接 HAL_GPIO_WritePin。 */
+    /* 这里记录最近一次 GPIO 操作，便于测试断言。 */
     platform->last_gpio_pin = pin;
     platform->last_gpio_value = value;
     return 0;
@@ -41,13 +38,13 @@ static int stm32_gpio_write(void *context, int pin, int value)
 
 static int stm32_pwm_set(void *context, int channel, uint32_t frequency_hz, float duty_cycle)
 {
-    stm32_platform_t *platform = (stm32_platform_t *)context;
+    platform_t *platform = (platform_t *)context;
 
     if (platform == NULL) {
         return -1;
     }
 
-    /* 真实 STM32 项目里这里通常会接 TIM PWM 配置和启动。 */
+    /* 这里记录最近一次 PWM 配置，模拟定时器 PWM 输出。 */
     platform->last_pwm_channel = channel;
     platform->last_pwm_frequency_hz = frequency_hz;
     platform->last_pwm_duty_cycle = duty_cycle;
@@ -56,26 +53,44 @@ static int stm32_pwm_set(void *context, int channel, uint32_t frequency_hz, floa
 
 static uint32_t stm32_get_tick_ms(void *context)
 {
-    stm32_platform_t *platform = (stm32_platform_t *)context;
-    return platform->systick_ms_cache;
+    platform_t *platform = (platform_t *)context;
+
+    if (platform == NULL) {
+        return 0U;
+    }
+
+    return platform->tick_ms;
 }
 
 static void stm32_delay_ms(void *context, uint32_t delay_ms)
 {
-    stm32_platform_t *platform = (stm32_platform_t *)context;
+    platform_t *platform = (platform_t *)context;
 
     if (platform == NULL) {
         return;
     }
 
-    /* 真实 STM32 项目里这里通常会接 HAL_Delay。 */
+    /* 这里不做真实阻塞，只缓存参数给上层测试读取。 */
     platform->last_delay_ms = delay_ms;
 }
 
-platform_bundle_t stm32_platform_create_bundle(stm32_platform_t *platform)
+platform_bundle_t platform_create_bundle(platform_t *platform)
 {
-    platform_bundle_t bundle;
+    platform_bundle_t bundle = {0};
 
+    if (platform == NULL) {
+        return bundle;
+    }
+
+    /* 这里把运行期观测字段清零，避免上层读到脏数据。 */
+    platform->last_gpio_pin = 0;
+    platform->last_gpio_value = 0;
+    platform->last_pwm_channel = 0;
+    platform->last_pwm_frequency_hz = 0U;
+    platform->last_pwm_duty_cycle = 0.0f;
+    platform->last_delay_ms = 0U;
+
+    /* 统一对上层暴露 platform_bundle_t，上层不用关心底层是 STM32。 */
     bundle.i2c.context = platform;
     bundle.i2c.read = stm32_i2c_read;
     bundle.i2c.write = NULL;
